@@ -1,0 +1,122 @@
+import re
+
+def count_report_words(file_path):
+    """
+    Count words in the main body of a report, excluding specified sections.
+    """
+    try:
+        with open(file_path, 'r', encoding='utf-8') as file:
+            content = file.read()
+    except FileNotFoundError:
+        print(f"Error: File '{file_path}' not found.")
+        return
+    except UnicodeDecodeError:
+        # Try with different encoding if UTF-8 fails
+        with open(file_path, 'r', encoding='latin-1') as file:
+            content = file.read()
+    
+    # Define page ranges for inclusion and exclusion
+    excluded_pages = {
+        'front_page': [1],
+        'table_of_contents': [3, 4],
+        'lists': [5, 6, 7],
+        'references': list(range(58, 63)),  # Pages 58-62
+        'appendices': list(range(63, 68))   # Pages 63-67
+    }
+    
+    # Included pages: Page 2 + Pages 8-49 + Pages 50-57
+    included_pages = [2] + list(range(8, 50)) + list(range(50, 58))
+    
+    # Flatten all excluded pages for easy checking
+    all_excluded_pages = []
+    for section in excluded_pages.values():
+        all_excluded_pages.extend(section)
+    
+    print(f"Included pages: {len(included_pages)} pages")
+    print(f"Excluded pages: {len(all_excluded_pages)} pages")
+    
+    # Split content by pages (assuming format "===== Page X =====")
+    page_pattern = r'===== Page (\d+) ====='
+    pages = re.split(page_pattern, content)
+    
+    # The split results in alternating: [content_before_first_page, page_num, content, page_num, ...]
+    page_content_map = {}
+    current_page = 0
+    
+    for i, item in enumerate(pages):
+        if i == 0:
+            # Content before first page marker
+            continue
+        elif i % 2 == 1:
+            # This is a page number
+            current_page = int(item)
+        else:
+            # This is the content for the previous page number
+            page_content_map[current_page] = item
+    
+    # Extract and combine content from included pages
+    main_body_text = ""
+    word_count = 0
+    
+    for page_num in included_pages:
+        if page_num in page_content_map:
+            page_text = page_content_map[page_num]
+            
+            # Clean the text: remove page markers and other artifacts
+            clean_text = re.sub(r'=====.*?=====', '', page_text)
+            clean_text = re.sub(r'\[\s*text layer\s*\]', '', clean_text)
+            
+            main_body_text += clean_text + " "
+            
+            # Count words on this page
+            words = len(re.findall(r'\b\w+\b', clean_text))
+            word_count += words
+            print(f"Page {page_num}: {words} words")
+    
+    # Alternative word count method for verification
+    all_words = re.findall(r'\b\w+\b', main_body_text)
+    alt_word_count = len(all_words)
+    
+    print(f"\n=== WORD COUNT RESULTS ===")
+    print(f"Primary word count: {word_count:,} words")
+    print(f"Alternative count: {alt_word_count:,} words")
+    print(f"Average: {(word_count + alt_word_count) / 2:,.0f} words")
+    
+    return word_count
+
+def simple_word_count(file_path):
+    """
+    Simple word count for the entire file (for comparison)
+    """
+    try:
+        with open(file_path, 'r', encoding='utf-8') as file:
+            content = file.read()
+    except UnicodeDecodeError:
+        with open(file_path, 'r', encoding='latin-1') as file:
+            content = file.read()
+    
+    # Remove page markers and count words
+    clean_content = re.sub(r'=====.*?=====', '', content)
+    clean_content = re.sub(r'\[\s*text layer\s*\]', '', clean_content)
+    
+    words = re.findall(r'\b\w+\b', clean_content)
+    
+    print(f"\n=== COMPARISON ===")
+    print(f"Total words in entire document: {len(words):,} words")
+
+# Usage
+if __name__ == "__main__":
+    file_path = "JIP_Final_Report (4).pdf.txt"  # Replace with your actual file path
+    
+    print("Analyzing report word count...")
+    print("=" * 50)
+    
+    # Count words in main body only
+    main_body_count = count_report_words(file_path)
+    
+    # Show total for comparison
+    simple_word_count(file_path)
+    
+    if main_body_count:
+        print(f"\n=== FINAL ESTIMATE ===")
+        print(f"Main body word count: ~{main_body_count:,} words")
